@@ -18,8 +18,8 @@ class Dataset(object):
         self.real_num_users = len(self.load_all_clientId())
 
     def get_train_data_shape(self):
-        num_users = 3000   #douban 3000   yahoo_music: 3000   ml-100k:943   flixster：3000
-        num_items = 3000    #douban 3000   yahoo_music: 3000   ml-100k:1682  flixster：3000
+        num_users = 3000  
+        num_items = 3000 
         return num_users, num_items
 
    
