@@ -112,7 +112,7 @@ class Client:
                 weights[k] = v
             else:
                 weights[k] = v
-                sigma = 0.0005# 0.0001  0.0005 0.001
+                sigma = 0.0005
                 a=np.array(weights[k].cpu())
                 noise = np.random.normal(0, sigma, a.shape)
                 noise = torch.tensor(noise)
