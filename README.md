@@ -49,7 +49,8 @@ Sub-graph expansion in DeFedGCN
 Generates the communication topology for all clients
 
 
-![cfab5359f3df42e09a0f3dcf823af00](https://github.com/kqkq926/DeFedGCN/assets/97420917/3085060b-f43f-4db3-839d-e30552b0420f)
+![communication](https://github.com/kqkq926/DeFedGCN/assets/97420917/af6ca8d2-98e8-407b-8ae1-22a5e4006d5f)
+
 
 
 
