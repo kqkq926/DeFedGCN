@@ -45,6 +45,12 @@ Model inversation attack proceedings.
 ### Subgraph_expansion.cpp
 Sub-graph expansion in DeFedGCN
 
+### Communication.py  
+Generates the communication topology for all clients
+
+![communication ](https://github.com/kqkq926/DeFedGCN/assets/97420917/b02f5249-aad0-4c7c-95f4-e802d8c81c6a)
+
+
 
 
 
