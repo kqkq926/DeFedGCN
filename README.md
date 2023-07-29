@@ -47,7 +47,10 @@ Sub-graph expansion in DeFedGCN
 
 ### Communication.py  
 Generates the communication topology for all clients
-![communication ](https://github.com/kqkq926/DeFedGCN/assets/97420917/b02f5249-aad0-4c7c-95f4-e802d8c81c6a)
+
+
+![cfab5359f3df42e09a0f3dcf823af00](https://github.com/kqkq926/DeFedGCN/assets/97420917/3085060b-f43f-4db3-839d-e30552b0420f)
+
 
 
 
