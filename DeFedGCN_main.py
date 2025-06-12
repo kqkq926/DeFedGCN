@@ -8,11 +8,8 @@ from Client_local_training import Client ,Data
 from collections import OrderedDict
 from LightGCN_model import *
 from Parameters import parse_args
-from attack import PGDAttack
-from scipy.sparse import csr_matrix
+import torch
 import pandas as pd
-from numpy import dot
-from numpy.linalg import norm
 from Evaluation_DeFedGCN import *
 
 
@@ -59,45 +56,73 @@ class Server:
     def distribute_task(self, connection, learning_rate,NeighId,userEmbdMan,Neighbor):
         """Distribute weights and get parameters for each client
         """
-
         client_weight_datas = []
-        pair_client_weight_datas = []
-        client_ids = []
-        all_ids = []
-        for k, v in result.items():
-                all_ids.append(k)
-             
-        self.epoch_client = all_ids
         server_weights = OrderedDict()
         for k, v in self.model.state_dict().items():
             server_weights[k] = v
         pair = []
-      
-        for client_id, pair_ids  in connection.items():
-            pair.append(client_id)
-            for i in range(len(pair_ids)):
-                pair.append(pair_ids[i])
-            for train_id in pair:
-                index_Id = self.all_clientId.index(train_id)
-                user_server_weights = reload_model_params(NeighId[index_Id], userEmbdMan,server_weights )
-                weights = self.client.train_epoch(self.model, index_Id ,train_id ,user_server_weights, learning_rate,userEmbdMan,Neighbor)
-                pair_client_weight_datas.append(weights)
-                rat = pair_caculate_weight(pair)
-                client_weight_datas = pair_federated_average(pair_client_weight_datas)
-            pair.clear()
 
+        client_ids = [i for i in connection.keys()]
+
+        for index_Id in client_ids:
+            train_id = self.all_clientId[index_Id]
+            user_server_weights = reload_model_params(NeighId[index_Id], userEmbdMan,server_weights )
+            weights = self.client.train_epoch(self.model, index_Id ,train_id ,user_server_weights, learning_rate,userEmbdMan,Neighbor)
+            client_weight_datas.append(weights)
+
+        return client_weight_datas
+    
+ 
+    def has_converged(self, client_vectors, epsilon=1e-5):
+        """
+        Determine convergence 
+        """
+
+        reference_vector = {key: torch.tensor(val, device=device) for key, val in client_vectors[0].items()}
+    
+        w = list(client_vectors[0].keys())  
+        
+        for vector in client_vectors[1:]: 
+            current_vector = {key: torch.tensor(val, device=device) for key, val in vector.items()}
+            
+            for key in w:
+                
+                if torch.norm(current_vector[key] - reference_vector[key]).item() > epsilon:
+                    return False
+    
+        return True
+
+        
+    
+    def pair_federated_average(self, index_id, neighbor_indexid,client_weight_datas):
+        """Pairwise average
+        """
+
+        rat = self.caculate_weight(index_id, neighbor_indexid,)
+        w = list(client_weight_datas[index_id].keys())
+        index_id, neighbor_indexid = index_id-1, neighbor_indexid-1
+        for key in w:
+            averaged_value = (
+            client_weight_datas[index_id][key] * rat[0] +
+            client_weight_datas[neighbor_indexid][key] * rat[1]
+        )
+    
+            client_weight_datas[index_id][key] = averaged_value
        
-        client_weight_datas.append(client_weight_datas)
+            client_weight_datas[neighbor_indexid][key] = averaged_value
+        
+ 
 
         return client_weight_datas
 
-    def caculate_weight(self,pair):
+    def caculate_weight(self,index_id, neighbor_indexid,):
         all_length = 0
         rat = []
         path = self.p + '/' + self.data_name + '_all' 
         i=0
+        pair = [index_id]+[neighbor_indexid]
         for client_ID in pair:
-            filename = path  + '/localUser'+str(self.all_clientId.index(client_ID)+1)+'.txt'
+            filename = path  + '/localUser'+str(client_ID)+'.txt'
             rat.append(len(load_ml_100k(filename)))
             all_length += rat[i]
             i += 1
@@ -107,56 +132,29 @@ class Server:
         
         return rat
 
-    def caculate_weight(self):
-        all_length = 0
-        rat = []
-        path = self.p + '/' + self.data_name + '_all' 
-        i=0
-        for client_ID in self.epoch_client:
-            filename = path  + '/localUser'+str(self.all_clientId.index(client_ID)+1)+'.txt'
-            rat.append(len(load_ml_100k(filename)))
-            all_length += rat[i]
-            i += 1
-       
-        for j in range(i):
-            rat[j] = rat[j] / all_length
+
+
+    def federated_average(self, client_weight_datas,connection):
+        """Average the parameters of the training model and return
+        """
+
+             
+        while True:
+            for index_id, neighbors_index in connection.items():
+                for neighbor_indexid in neighbors_index:
+                    if index_id < neighbor_indexid: 
+                        after_client_weight_datas = self.pair_federated_average(index_id, neighbor_indexid, client_weight_datas)
+
+            if self.has_converged(after_client_weight_datas, epsilon = 1e-5):
+                break
         
-        return rat
-
-    def pair_federated_average(self, client_weight_datas):
-        """Average the parameters of the training model and return
-        """
-
-        rat = self.caculate_weight()
-        client_num = len(client_weight_datas)
-        assert client_num != 0
-        w = list(client_weight_datas[0].keys())
         fed_state_dict = OrderedDict()
+        w  = list(client_weight_datas[0].keys())
         for key in w:
-            key_sum = 0
-            for i in range(client_num):
-                key_sum = key_sum + client_weight_datas[i][key] * rat[i]
-            fed_state_dict[key] = key_sum 
-
-        return fed_state_dict 
-
-
-    def federated_average(self, client_weight_datas):
-        """Average the parameters of the training model and return
-        """
-
-        rat = self.caculate_weight()
-        client_num = len(client_weight_datas)
-        assert client_num != 0
-        w = list(client_weight_datas[0].keys())
-        fed_state_dict = OrderedDict()
-        for key in w:
-            key_sum = 0
-            for i in range(client_num):
-                key_sum = key_sum + client_weight_datas[i][key] * rat[i]
-            fed_state_dict[key] = key_sum 
-
+            fed_state_dict[key] = client_weight_datas[0][key] 
+       
         self.model.load_state_dict(fed_state_dict)
+
         return fed_state_dict 
 
 
@@ -177,6 +175,7 @@ class Server:
                 value = eval(value)
                 connection[int(key)] = value
 
+ 
 
         userEmbdMan = []
         embedding_user = torch.rand((self.num_users , 64), requires_grad=True)
@@ -210,7 +209,7 @@ class Server:
         for epoch in range(self.epochs):
             t1 = time()
             client_weight_datas = self.distribute_task(connection, learning_rate, NeighId, userEmbdMan, Neighbor)
-            avg_state_dict = self.federated_average(client_weight_datas)
+            avg_state_dict = self.federated_average(client_weight_datas,connection)
            
             rmse_all = evaluate_globalmodel(self.model,self.client,epoch+1, self.client_Id, userEmbdMan, Neighbor)
             evaluate_global_rmse.append(rmse_all)
@@ -223,7 +222,7 @@ class Server:
             print(rmse)
             print('[%.1f s]' % (time()-t1))
 
-
+            # change Round R
             # if(epoch + 1 == 4): 
             #    Neighbor = True
 
